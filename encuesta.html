@@ -150,6 +150,13 @@
             position: relative;
         }
 
+        .certificate-score-text {
+            font-size: 1.1rem;
+            color: #005a9c;
+            margin-top: 1rem;
+            font-weight: 600;
+        }
+
         .certificate-container::before {
             content: '💧';
             position: absolute;
@@ -312,6 +319,9 @@
                 <p class="certificate-text">
                     por haber demostrado un conocimiento
                     excepcional sobre la cultura hídrica y los Objetivos de Desarrollo Sostenible.
+                </p>
+                <p class="certificate-score-text">
+                    Puntaje obtenido: <span id="certificate-score" style="font-weight: bold; color: #007bff;"></span>
                 </p>
                 
                 <p class="certificate-date" id="certificate-date-text"></p>
@@ -970,25 +980,33 @@
             function showResults() {
                 questionScreen.classList.remove('active');
                 
-                if (score === selectedQuestions.length) {
+                const percentage = (score / selectedQuestions.length) * 100;
+                
+                // Otorgar certificado si responde correctamente 80% o más
+                if (percentage >= 80) {
                     certificateScreen.classList.add('active');
-                    certificateName.innerText = playerName; // Pone el nombre en el certificado
+                    certificateName.innerText = playerName;
                     const today = new Date();
                     const options = { year: 'numeric', month: 'long', day: 'numeric' };
                     certificateDateText.innerText = `Otorgado el ${today.toLocaleDateString('es-MX', options)}`;
+                    
+                    // Actualizar el texto del certificado con el porcentaje obtenido
+                    const certificateScore = document.getElementById('certificate-score');
+                    if (certificateScore) {
+                        certificateScore.innerText = `${score}/${selectedQuestions.length} preguntas correctas (${Math.round(percentage)}%)`;
+                    }
                 } else {
                     resultScreen.classList.add('active');
                     scoreSpan.innerText = score;
                     totalQuestionsSpan.innerText = selectedQuestions.length;
 
                     let message = "";
-                    const percentage = (score / selectedQuestions.length) * 100;
-                    if (percentage >= 80) {
-                        message = "¡Muy bien! Tienes un gran conocimiento sobre el cuidado del agua. 👍";
+                    if (percentage >= 70) {
+                        message = `¡Muy cerca! Obtuviste ${Math.round(percentage)}%. Necesitas 80% para obtener el certificado. ¡Inténtalo de nuevo! 🎯`;
                     } else if (percentage >= 50) {
-                        message = "¡Bien hecho! Sigue aprendiendo para mejorar. 😊";
+                        message = `¡Bien hecho! Obtuviste ${Math.round(percentage)}%. Sigue aprendiendo para obtener el certificado (80%). 😊`;
                     } else {
-                        message = "Hay oportunidad para aprender más sobre este vital recurso. ¡No te rindas! 🌱";
+                        message = `Obtuviste ${Math.round(percentage)}%. Hay oportunidad para aprender más sobre este vital recurso. ¡No te rindas! 🌱`;
                     }
                     resultMessage.innerText = message;
                 }

@@ -95,6 +95,7 @@
             -moz-user-select: none;
             -ms-user-select: none;
             touch-action: manipulation;
+            z-index: 10; /* Ensure entities appear above background elements */
         }
         .entity img {
             width: 100%;
@@ -340,10 +341,10 @@
             };
 
             const SOUNDS = {
-                collect: document.getElementById('collect-sound'),
-                powerup: document.getElementById('powerup-sound'),
-                gameover: document.getElementById('gameover-sound'),
-                bgMusic: document.getElementById('bg-music')
+                collect: document.getElementById('collect-sound') || null,
+                powerup: document.getElementById('powerup-sound') || null,
+                gameover: document.getElementById('gameover-sound') || null,
+                bgMusic: document.getElementById('bg-music') || null
             };
             
             class Entity {
@@ -351,7 +352,8 @@
                     this.element = document.createElement('div');
                     this.element.className = `entity ${className}`;
                     this.element.style.width = `${data.size}px`;
-                    this.element.innerHTML = `<img src="${data.src}" alt="${className}">`;
+                    this.element.style.height = `${data.size}px`;
+                    this.element.innerHTML = `<img src="${data.src}" alt="${className}" style="width: 100%; height: 100%; object-fit: contain;">`;
                     
                     this.width = data.size;
                     this.height = data.size;
@@ -363,9 +365,15 @@
                 update(deltaTime) {  }
 
                 render() {
-                    this.element.style.left = `${this.x}px`;
-                    this.element.style.top = `${this.y}px`;
-                    this.element.style.transform = `rotate(${this.rotation || 0}deg)`;
+                    if (!this.element) return;
+                    
+                    const x = isNaN(this.x) ? 0 : this.x;
+                    const y = isNaN(this.y) ? 0 : this.y;
+                    const rotation = isNaN(this.rotation) ? 0 : this.rotation;
+                    
+                    this.element.style.left = `${x}px`;
+                    this.element.style.top = `${y}px`;
+                    this.element.style.transform = `rotate(${rotation}deg)`;
                 }
 
                 remove() {
@@ -380,12 +388,19 @@
                 constructor(data) {
                     super(data, 'creature');
                     const direction = Math.random() < 0.5 ? 1 : -1;
-                    this.x = direction === 1 ? -this.width : window.innerWidth;
-                    const gameAreaHeight = window.innerHeight - 240; 
+                    
+                    this.x = direction === 1 ? -this.width/2 : window.innerWidth - this.width/2;
+                    
+                    const gameAreaTop = 50;
+                    const gameAreaHeight = window.innerHeight - 300;
+                    this.y = gameAreaTop + Math.random() * Math.max(100, gameAreaHeight - this.height);
+                    
                     this.speedX = (Math.random() * 1.5 + 0.5) * direction;
                     this.speedY = (Math.random() - 0.5) * 0.8;
                     this.wavePhase = Math.random() * Math.PI * 2;
                     this.element.style.transform = `scaleX(${direction})`;
+                    
+                    this.render();
                 }
 
                 update(deltaTime) {
@@ -413,8 +428,10 @@
                 constructor(data, className, game) {
                     super(data, className);
                     this.game = game;
+                    
                     this.x = Math.random() * (window.innerWidth - this.width);
-                    this.y = -this.height;
+                    this.y = 50;
+                    
                     this.speedY = Math.random() * 1 + CONFIG.difficulty.itemBaseSpeed;
                     this.speedX = 0;
                     this.rotation = Math.random() * 360;
@@ -426,6 +443,8 @@
                         e.preventDefault();
                         this.onClick(e.touches[0] || e);
                     }, { passive: false });
+                    
+                    this.render();
                 }
 
                 update(deltaTime) {
@@ -536,8 +555,10 @@
 
                     this.spawnItem();
 
-                    SOUNDS.bgMusic.volume = 0.3;
-                    SOUNDS.bgMusic.play().catch(e => console.error("Autoplay bloqueado"));
+                    if (SOUNDS.bgMusic) {
+                        SOUNDS.bgMusic.volume = 0.3;
+                        SOUNDS.bgMusic.play().catch(e => console.error("Autoplay bloqueado"));
+                    }
 
                     this.lastTime = performance.now();
                     this.animationFrameId = requestAnimationFrame((timestamp) => this.mainLoop(timestamp));
@@ -686,26 +707,24 @@
                     DOM.gameOverScreen.classList.remove('d-none');
                     DOM.gameContainer.style.filter = 'blur(8px) grayscale(80%)';
                     
-                    SOUNDS.bgMusic.pause();
+                    if (SOUNDS.bgMusic) {
+                        SOUNDS.bgMusic.pause();
+                    }
                     playSound(SOUNDS.gameover);
                 }
             }
 
             function playSound(sound) {
                 try {
-                    if (sound && sound.play) {
+                    if (sound && sound.play && typeof sound.play === 'function') {
                         sound.currentTime = 0;
                         sound.volume = sound.volume || 0.5;
                         const playPromise = sound.play();
                         if (playPromise !== undefined) {
-                            playPromise.catch(e => {
-                                console.warn('Audio play failed:', e.message);
-                            });
+                            playPromise.catch(e => {});
                         }
                     }
-                } catch (e) {
-                    console.warn('Audio error:', e.message);
-                }
+                } catch (e) {}
             }
 
             function createClickEffect(x, y) {
@@ -765,20 +784,13 @@
                         loadedCount++;
                         updateProgress();
                         if (loadedCount + errorCount === allAssets.length) {
-                            if (errorCount > 0) {
-                                console.warn(`${errorCount} assets failed to load, but game will continue`);
-                            }
                             callback();
                         }
                     };
                     img.onerror = (e) => {
                         errorCount++;
-                        console.error(`Failed to load asset: ${src}`, e);
                         updateProgress();
                         if (loadedCount + errorCount === allAssets.length) {
-                            if (errorCount > 0) {
-                                console.warn(`${errorCount} assets failed to load, but game will continue`);
-                            }
                             callback();
                         }
                     };
@@ -791,6 +803,15 @@
                 const game = new Game();
                 DOM.startButton.addEventListener('click', () => game.start());
             });
+            
+            setTimeout(() => {
+                if (DOM.startButton.disabled) {
+                    DOM.startButton.disabled = false;
+                    DOM.startButton.textContent = '¡Comenzar a Limpiar!';
+                    const game = new Game();
+                    DOM.startButton.addEventListener('click', () => game.start());
+                }
+            }, 10000);
         });
     </script>
 </body>
