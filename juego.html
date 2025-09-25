@@ -293,7 +293,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             
             const CONFIG = {
-                MAX_CREATURES: 8,
+                MAX_CREATURES: 15, // Aumentado de 8 a 15 peces
                 SCORE_PER_TRASH: 10,
                 POLLUTION_REDUCTION_ON_CLICK: 5,
                 POWERUP_POLLUTION_REDUCTION: 25,
@@ -306,7 +306,7 @@
                     basePollutionPerSecond: 1.2, 
                     pollutionPerSecond: 1.2,
                     spawnInterval: 2000,
-                    minSpawnInterval: 500,
+                    minSpawnInterval: 300, // Reducido de 500 a 300 para spawn más rápido
                     itemBaseSpeed: 1,
                     pollutionMultiplier: 1,
                 }
@@ -319,11 +319,17 @@
                     { src: 'assets/tortuga marina.png', size: 120 },
                     { src: 'assets/medusa.png', size: 80 },
                     { src: 'assets/pezpayaso.png', size: 90 },
+                    { src: 'assets/pez.png', size: 85 },
+                    { src: 'assets/pecesgrupo.png', size: 110 },
                 ],
                 trash: [
                     { src: 'assets/lata.png', size: 100 },
                     { src: 'assets/bolsa.png', size: 120 },
                     { src: 'assets/bota.png', size: 110 },
+                    { src: 'assets/botella.png', size: 95 },
+                    { src: 'assets/vaso.png', size: 85 },
+                    { src: 'assets/llanta.png', size: 130 },
+                    { src: 'assets/basura.png', size: 105 },
                 ],
                 powerUp: { src: 'assets/burbuja.png', size: 90 }
             };
@@ -536,6 +542,7 @@
                     this.pollution = 0;
                     this.entities = [];
                     DOM.gameContainer.innerHTML = '';
+                    this.gameStartTime = performance.now(); // Inicializar tiempo de inicio
                     
                     CONFIG.difficulty.level = 1;
                     CONFIG.difficulty.pollutionPerSecond = CONFIG.difficulty.basePollutionPerSecond;
@@ -571,7 +578,11 @@
                         const deltaTime = (timestamp - this.lastTime) / 16.67; 
                         this.lastTime = timestamp;
 
-                        const currentPollutionRate = CONFIG.difficulty.pollutionPerSecond * CONFIG.difficulty.pollutionMultiplier;
+                        // Sistema de dificultad basado en tiempo
+                        const gameTime = (timestamp - this.gameStartTime) / 1000; // tiempo en segundos
+                        const timeMultiplier = 1 + (gameTime / 120); // aumenta cada 2 minutos
+                        
+                        const currentPollutionRate = CONFIG.difficulty.pollutionPerSecond * CONFIG.difficulty.pollutionMultiplier * timeMultiplier;
                         this.pollutionAccumulator += currentPollutionRate * (deltaTime / 60);
                         if (this.pollutionAccumulator >= 1) {
                             this.updatePollution(Math.floor(this.pollutionAccumulator));
@@ -611,7 +622,15 @@
                         this.entities.push(new Trash(data, this));
                     }
                     
-                    this.spawnTimeout = setTimeout(() => this.spawnItem(), CONFIG.difficulty.spawnInterval);
+                    // Acelerar spawn basado en el tiempo transcurrido
+                    const gameTime = (performance.now() - this.gameStartTime) / 1000; // tiempo en segundos
+                    const timeSpeedMultiplier = Math.min(3, 1 + (gameTime / 60)); // máximo 3x velocidad después de 2 minutos
+                    const currentSpawnInterval = Math.max(
+                        CONFIG.difficulty.minSpawnInterval,
+                        CONFIG.difficulty.spawnInterval / timeSpeedMultiplier
+                    );
+                    
+                    this.spawnTimeout = setTimeout(() => this.spawnItem(), currentSpawnInterval);
                 }
 
 
@@ -671,10 +690,23 @@
                     else if (this.pollution < 75) DOM.pollutionBar.className = 'progress-bar bg-warning';
                     else DOM.pollutionBar.className = 'progress-bar bg-danger';
                     
+                    // Efectos visuales mejorados en los peces según contaminación
                     const pollutionEffect = this.pollution / 100;
                     this.entities.forEach(e => {
                         if (e instanceof Creature) {
-                            e.element.style.filter = `grayscale(${pollutionEffect * 0.8}) blur(${pollutionEffect * 1.5}px)`;
+                            // Aumentar gradualmente grises y borrosidad
+                            const grayScale = Math.min(0.9, pollutionEffect * 1.2);
+                            const blur = Math.min(3, pollutionEffect * 4);
+                            const opacity = Math.max(0.4, 1 - (pollutionEffect * 0.6));
+                            const brightness = Math.max(0.5, 1 - (pollutionEffect * 0.5));
+                            
+                            e.element.style.filter = `grayscale(${grayScale}) blur(${blur}px) opacity(${opacity}) brightness(${brightness})`;
+                            
+                            // Reducir velocidad de peces cuando hay mucha contaminación
+                            if (pollutionEffect > 0.5) {
+                                e.speedX *= (1 - pollutionEffect * 0.3);
+                                e.speedY *= (1 - pollutionEffect * 0.3);
+                            }
                         }
                     });
 
